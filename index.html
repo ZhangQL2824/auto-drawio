@@ -1,0 +1,1952 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>auto-drawio - AI流程图生成器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* 左侧 AI 对话区 */
+        .chat-panel {
+            width: 400px;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            padding: 20px;
+            background: #fff;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chat-header h2 {
+            font-size: 18px;
+            color: #212529;
+        }
+
+        /* 提示横幅 */
+        .tip-banner {
+            padding: 6px 12px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 16px;
+            font-size: 13px;
+            color: #856404;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tip-banner-icon {
+            font-size: 14px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-user {
+            text-align: right;
+        }
+
+        .message-ai {
+            text-align: left;
+        }
+
+        .message-content {
+            display: inline-block;
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            word-wrap: break-word;
+        }
+
+        .message-user .message-content {
+            background: #007bff;
+            color: white;
+        }
+
+        .message-ai .message-content {
+            background: white;
+            color: #212529;
+            border: 1px solid #dee2e6;
+        }
+
+        .stream-output {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            user-select: text;
+            cursor: text;
+        }
+
+        .stream-status {
+            color: #007bff;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .stream-status.completed {
+            color: #28a745;
+        }
+
+        .stream-status.error {
+            color: #dc3545;
+        }
+
+        .chat-input-area {
+            padding: 20px;
+            background: #fff;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .chat-input:focus {
+            border-color: #007bff;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .btn-primary:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .action-buttons {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        /* 右侧 Draw.io 编辑区 */
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+        }
+
+        .editor-header {
+            padding: 16px 20px;
+            background: #fff;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .editor-header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .editor-header-center {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .editor-header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .editor-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .editor-header h2 {
+            font-size: 18px;
+            color: #212529;
+        }
+
+        .editor-container {
+            flex: 1;
+            position: relative;
+        }
+
+        .editor-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #6c757d;
+        }
+
+        .empty-state svg {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-ready {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        /* 设置按钮 */
+        .settings-btn {
+            padding: 8px 16px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .settings-btn:hover {
+            background: #5a6268;
+        }
+
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 15px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 20px;
+            color: #212529;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            line-height: 28px;
+        }
+
+        .close-btn:hover {
+            color: #000;
+        }
+
+        /* 配置列表 */
+        .config-list {
+            margin-bottom: 20px;
+        }
+
+        .config-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .config-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: #212529;
+        }
+
+        .config-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .config-details {
+            font-size: 13px;
+            color: #495057;
+        }
+
+        .config-details div {
+            margin: 5px 0;
+            word-break: break-all;
+        }
+
+        .config-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        .config-enabled {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .config-disabled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* 表单 */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #212529;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .btn-add {
+            background: #28a745;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .btn-add:hover {
+            background: #218838;
+        }
+
+        /* 格式选择模态框 */
+        .format-selector {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            min-width: 300px;
+        }
+
+        .format-selector.active {
+            display: block;
+        }
+
+        .format-selector h4 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            color: #212529;
+        }
+
+        .format-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .format-option {
+            padding: 12px 16px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .format-option:hover {
+            border-color: #007bff;
+            background: #f8f9fa;
+        }
+
+        .format-option input[type="radio"] {
+            cursor: pointer;
+        }
+
+        .format-option label {
+            cursor: pointer;
+            flex: 1;
+            margin: 0;
+        }
+
+        .format-description {
+            font-size: 12px;
+            color: #6c757d;
+            display: block;
+            margin-top: 4px;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.3);
+        }
+
+        .modal-overlay.active {
+            display: block;
+        }
+
+        /* 快捷提问按钮 */
+        .quick-questions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .quick-question-btn {
+            padding: 8px 14px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 16px;
+            font-size: 13px;
+            color: #495057;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .quick-question-btn:hover {
+            background: #e9ecef;
+            border-color: #007bff;
+            color: #007bff;
+        }
+
+        .quick-question-btn:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 左侧 AI 对话区 -->
+        <div class="chat-panel">
+            <div class="chat-header">
+                <h2>auto-drawio</h2>
+                <button class="btn btn-secondary btn-small" onclick="newConversation()" style="margin-left: auto;">
+                    新建会话
+                </button>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="message message-ai">
+                    <div class="message-content">
+                        你好！我是 auto-drawio。<br>
+                        请描述你想要生成的流程图，例如：<br>
+                        • "生成一个用户登录流程图"<br>
+                        • "创建订单处理流程"<br>
+                        • "设计支付系统架构图"
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <!-- 快捷提问按钮 -->
+                <div class="quick-questions">
+                    <button class="quick-question-btn" onclick="quickQuestion('生成一个用户登录流程图')">
+                        用户登录流程
+                    </button>
+                    <button class="quick-question-btn" onclick="quickQuestion('创建一个电商订单处理流程')">
+                        订单处理流程
+                    </button>
+                    <button class="quick-question-btn" onclick="quickQuestion('设计一个支付系统架构图')">
+                        支付系统架构
+                    </button>
+                </div>
+
+                <div class="input-group">
+                    <input
+                        type="text"
+                        class="chat-input"
+                        id="userInput"
+                        placeholder="描述你想要的流程图..."
+                        onkeypress="handleKeyPress(event)"
+                    />
+                    <button class="btn btn-primary" id="generateBtn" onclick="generateDiagram()">
+                        生成
+                    </button>
+                </div>
+                <!-- 隐藏的文件选择器 -->
+                <input type="file" id="fileInput" accept=".xml,.drawio" style="display: none;" onchange="handleFileSelect(event)" />
+            </div>
+        </div>
+
+        <!-- 右侧 Draw.io 编辑区 -->
+        <div class="editor-panel">
+            <div class="editor-header">
+                <div class="editor-header-left">
+                    <span class="status-badge status-ready" id="statusBadge">就绪</span>
+                </div>
+                <div class="editor-header-center">
+                    <!-- 提示横幅 -->
+                    <div class="tip-banner">
+                        <span class="tip-banner-icon">💡</span>
+                        <span>如果生成效果不佳，建议点击"新建会话"重新开始</span>
+                    </div>
+                </div>
+                <div class="editor-header-right">
+                    <div class="editor-actions">
+                        <button class="btn btn-secondary btn-small" onclick="openSettings()">
+                            模型配置
+                        </button>
+                        <button class="btn btn-success btn-small" onclick="exportAsImage()">
+                            导出图片
+                        </button>
+                        <!-- 暂时隐藏的按钮 -->
+                        <button class="btn btn-success btn-small" onclick="importDiagram()" style="display: none;">
+                            导入 XML
+                        </button>
+                        <button class="btn btn-success btn-small" onclick="saveDiagram()" style="display: none;">
+                            保存图表
+                        </button>
+                        <button class="btn btn-success btn-small" onclick="exportDiagram()" style="display: none;">
+                            导出图表
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="editor-container">
+                <!-- 空状态提示 -->
+                <div class="empty-state" id="emptyState">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p>还没有流程图</p>
+                    <p style="font-size: 14px; margin-top: 8px;">在左侧输入描述，让 AI 为你生成</p>
+                </div>
+
+                <!-- 加载中 -->
+                <div class="loading" id="loadingState">
+                    <div class="spinner"></div>
+                    <p>正在生成流程图...</p>
+                </div>
+
+                <!-- Draw.io 编辑器 iframe -->
+                <iframe
+                    id="drawioEditor"
+                    class="editor-iframe"
+                    style="display: none;"
+                    src="http://localhost:8080/?embed=1&proto=json&spin=1&saveAndExit=0&noSaveBtn=1&noExitBtn=1&libraries=1&ui=kennedy"
+                ></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI 配置管理模态框 -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>AI 模型配置</h3>
+                <button class="close-btn" onclick="closeSettings()">&times;</button>
+            </div>
+
+            <button class="btn btn-add" onclick="showAddConfigForm()">+ 添加新配置</button>
+
+            <!-- 配置列表 -->
+            <div class="config-list" id="configList">
+                <p style="text-align: center; color: #6c757d;">加载中...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 格式选择遮罩层 -->
+    <div class="modal-overlay" id="formatOverlay" onclick="closeFormatSelector()"></div>
+
+    <!-- 格式选择器 -->
+    <div class="format-selector" id="formatSelector">
+        <h4>选择导出格式</h4>
+        <div class="format-options">
+            <div class="format-option" onclick="selectFormat('png')">
+                <input type="radio" name="format" id="formatPNG" value="png" checked>
+                <label for="formatPNG">
+                    <strong>PNG 格式</strong>
+                    <span class="format-description">适合网页使用，支持透明背景，文件较大</span>
+                </label>
+            </div>
+            <div class="format-option" onclick="selectFormat('jpg')">
+                <input type="radio" name="format" id="formatJPG" value="jpg">
+                <label for="formatJPG">
+                    <strong>JPG 格式</strong>
+                    <span class="format-description">文件较小，适合打印和分享，不支持透明</span>
+                </label>
+            </div>
+            <div class="format-option" onclick="selectFormat('svg')">
+                <input type="radio" name="format" id="formatSVG" value="svg">
+                <label for="formatSVG">
+                    <strong>SVG 格式</strong>
+                    <span class="format-description">矢量图，可无限缩放不失真，适合编辑</span>
+                </label>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeFormatSelector()">取消</button>
+            <button type="button" class="btn btn-primary" onclick="confirmExport()">确定导出</button>
+        </div>
+    </div>
+
+    <!-- 添加/编辑配置模态框 -->
+    <div class="modal" id="configFormModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="formTitle">添加新配置</h3>
+                <button class="close-btn" onclick="closeConfigForm()">&times;</button>
+            </div>
+
+            <form id="configForm" onsubmit="saveConfig(event)">
+                <input type="hidden" id="configId" value="">
+
+                <div class="form-group">
+                    <label>配置名称 *</label>
+                    <input type="text" id="configName" required placeholder="例如: OpenAI GPT-4">
+                </div>
+
+                <div class="form-group">
+                    <label>API 基础 URL *</label>
+                    <input type="url" id="configBaseUrl" required placeholder="例如: https://api.openai.com/v1">
+                </div>
+
+                <div class="form-group">
+                    <label>API 密钥 *</label>
+                    <input type="text" id="configApiKey" required placeholder="sk-...">
+                </div>
+
+                <div class="form-group">
+                    <label>模型名称 *</label>
+                    <input type="text" id="configModel" required placeholder="例如: gpt-4">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeConfigForm()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let editorFrame = null;
+        let currentXML = null;
+        let isEditorReady = false;
+        let conversationHistory = [];  // 对话历史
+        let lastFailedXML = null;      // 最后一次失败的 XML
+        let lastValidationError = null; // 最后一次验证错误
+        let lastPrompt = null;          // 最后一次的提示词（用于手动重试）
+        let failedAPIs = [];            // 本次生成中失败的 API 列表
+        let lastUsedAPI = null;         // 最后使用的 API 名称
+        let lastFailedMessageDiv = null; // 最后失败的消息框
+        let exportingImage = false;     // 标记是否正在导出图片
+        let selectedFormat = 'png';     // 选择的导出格式
+
+        // 初始化
+        window.addEventListener('load', function() {
+            editorFrame = document.getElementById('drawioEditor').contentWindow;
+
+            // 监听来自 draw.io 的消息
+            window.addEventListener('message', function(evt) {
+                if (evt.data && evt.data.length > 0) {
+                    try {
+                        const msg = JSON.parse(evt.data);
+                        handleDrawioMessage(msg);
+                    } catch(e) {
+                        // 忽略非 JSON 消息
+                    }
+                }
+            });
+
+            console.log('应用已初始化');
+            console.log('对话记忆功能已启用');
+        });
+
+        // 处理 draw.io 的消息
+        function handleDrawioMessage(msg) {
+            console.log('收到 draw.io 消息:', msg);
+
+            switch(msg.event) {
+                case 'init':
+                    isEditorReady = true;
+                    updateStatus('就绪', 'ready');
+                    console.log('Draw.io 编辑器已就绪');
+                    break;
+
+                case 'save':
+                    currentXML = msg.xml;
+                    addChatMessage('ai', '图表已更新');
+                    break;
+
+                case 'export':
+                    if (exportingImage && msg.data) {
+                        // 导出图片
+                        exportingImage = false;
+                        downloadImage(msg.data, selectedFormat);
+                    } else {
+                        // 导出 XML
+                        currentXML = msg.xml;
+                        console.log('导出的 XML:', msg.xml);
+                    }
+                    break;
+
+                case 'autosave':
+                    currentXML = msg.xml;
+                    break;
+            }
+        }
+
+        // 按 Enter 发送
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                generateDiagram();
+            }
+        }
+
+        // 快捷提问
+        function quickQuestion(question) {
+            const input = document.getElementById('userInput');
+            input.value = question;
+            // 自动触发生成
+            generateDiagram();
+        }
+
+        // XML 格式验证函数
+        function validateXML(xmlString) {
+            try {
+                console.log('[XML验证] 开始验证 XML 格式...');
+
+                // 1. 基本检查：不能为空
+                if (!xmlString || xmlString.trim().length === 0) {
+                    console.error('[XML验证] ✗ XML 为空');
+                    return { valid: false, error: 'XML 内容为空' };
+                }
+
+                // 2. 必须包含 mxfile 标签
+                if (!xmlString.includes('<mxfile') && !xmlString.includes('<mxGraphModel')) {
+                    console.error('[XML验证] ✗ 缺少 mxfile 或 mxGraphModel 标签');
+                    return { valid: false, error: '不是有效的 draw.io XML 格式' };
+                }
+
+                // 3. 使用 DOMParser 验证 XML 语法
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+
+                // 检查是否有解析错误
+                const parserError = xmlDoc.querySelector('parsererror');
+                if (parserError) {
+                    const errorText = parserError.textContent;
+                    console.error('[XML验证] ✗ XML 解析错误:', errorText);
+                    return { valid: false, error: `XML 语法错误: ${errorText}` };
+                }
+
+                // 4. 检查必要的结构
+                const mxfile = xmlDoc.querySelector('mxfile');
+                const mxGraphModel = xmlDoc.querySelector('mxGraphModel');
+
+                if (!mxfile && !mxGraphModel) {
+                    console.error('[XML验证] ✗ 缺少必要的 XML 结构');
+                    return { valid: false, error: '缺少 mxfile 或 mxGraphModel 元素' };
+                }
+
+                console.log('[XML验证] ✓ XML 格式验证通过');
+                return { valid: true };
+
+            } catch (error) {
+                console.error('[XML验证] ✗ 验证过程出错:', error);
+                return { valid: false, error: `验证异常: ${error.message}` };
+            }
+        }
+
+        // 生成流程图（支持自动重试）
+        // 生成流程图（使用流式输出）
+        async function generateDiagram(isRetry = false, retryMessageDiv = null) {
+            const input = document.getElementById('userInput');
+            const prompt = input.value.trim();
+
+            if (!prompt) {
+                alert('请输入流程图描述');
+                return;
+            }
+
+            // 保存提示词，用于重试
+            lastPrompt = prompt;
+
+            // 如果不是重试，添加用户消息
+            if (!isRetry) {
+                addChatMessage('user', prompt);
+                input.value = '';
+            }
+
+            // 创建或复用流式输出消息框
+            let streamMessageDiv = null;
+            if (isRetry && retryMessageDiv) {
+                // 重试：复用现有消息框，清空内容和按钮
+                streamMessageDiv = retryMessageDiv;
+                clearStreamContent(streamMessageDiv);
+                // 移除重试按钮
+                const retryBtn = streamMessageDiv.querySelector('.retry-button');
+                if (retryBtn) {
+                    retryBtn.remove();
+                }
+                // 隐藏状态栏
+                const statusDiv = streamMessageDiv.querySelector('.stream-status');
+                if (statusDiv) {
+                    statusDiv.style.display = 'none';
+                    statusDiv.textContent = '';
+                }
+            }
+            // 注意：不在这里创建新消息框，等收到第一个内容时再创建
+
+            // 显示加载状态
+            updateStatus('生成中...', 'loading');
+            showLoading(true);
+
+            try {
+                const response = await fetch('http://localhost:8000/api/generate-diagram-stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        messages: conversationHistory,
+                        skip_apis: failedAPIs
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('生成失败');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let fullXML = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // 保留最后不完整的行
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.type === 'start') {
+                                // 开始新的流式输出
+                            } else if (data.type === 'content') {
+                                // 收到第一个内容时才创建消息框
+                                if (!streamMessageDiv) {
+                                    streamMessageDiv = createStreamMessage();
+                                }
+                                fullXML += data.content;
+                                appendStreamContent(streamMessageDiv, data.content);
+                            } else if (data.type === 'validation_failed') {
+                                // 确保有消息框
+                                if (!streamMessageDiv) {
+                                    streamMessageDiv = createStreamMessage();
+                                }
+                                // 验证失败，显示错误和重试按钮
+                                updateStreamMessage(streamMessageDiv, `❌ ${data.message}`, false, true);
+                                addRetryButton(streamMessageDiv);
+                                lastFailedMessageDiv = streamMessageDiv; // 保存失败的消息框
+                                updateStatus('验证失败', 'ready');
+                                showLoading(false);
+                                return;
+                            } else if (data.type === 'processing') {
+                                // 处理中，不显示额外提示
+                            } else if (data.type === 'complete') {
+                                // 确保有消息框
+                                if (!streamMessageDiv) {
+                                    streamMessageDiv = createStreamMessage();
+                                }
+                                // 生成完成
+                                currentXML = data.xml;
+                                conversationHistory = data.messages;
+
+                                // 标记流式消息为完成状态（不删除）
+                                updateStreamMessage(streamMessageDiv, '✅ 生成完成！XML 已加载到编辑器', true);
+
+                                // 加载到编辑器
+                                loadXMLToEditor(data.xml);
+                                updateStatus('就绪', 'ready');
+                                showLoading(false);
+                                return;
+                            } else if (data.type === 'error' || data.type === 'failed') {
+                                // 确保有消息框
+                                if (!streamMessageDiv) {
+                                    streamMessageDiv = createStreamMessage();
+                                }
+                                updateStreamMessage(streamMessageDiv, `❌ ${data.message}`, false, true);
+                                addRetryButton(streamMessageDiv);
+                                lastFailedMessageDiv = streamMessageDiv; // 保存失败的消息框
+                                updateStatus('错误', 'ready');
+                                showLoading(false);
+                                return;
+                            }
+                        }
+                    }
+                }
+
+            } catch (error) {
+                console.error('生成失败:', error);
+                // 确保有消息框
+                if (!streamMessageDiv) {
+                    streamMessageDiv = createStreamMessage();
+                }
+                if (streamMessageDiv && streamMessageDiv.parentNode) {
+                    updateStreamMessage(streamMessageDiv, '❌ 网络错误或请求失败，请检查连接后重试', false, true);
+                    addRetryButton(streamMessageDiv);
+                    lastFailedMessageDiv = streamMessageDiv; // 保存失败的消息框
+                }
+                updateStatus('错误', 'ready');
+                showLoading(false);
+            }
+        }
+
+        // 创建流式输出消息框
+        function createStreamMessage() {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message message-ai';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'stream-status';
+            statusDiv.style.display = 'none';  // 初始隐藏状态栏
+            statusDiv.textContent = '';
+
+            const outputDiv = document.createElement('div');
+            outputDiv.className = 'stream-output';
+            outputDiv.textContent = '';
+
+            contentDiv.appendChild(statusDiv);
+            contentDiv.appendChild(outputDiv);
+            messageDiv.appendChild(contentDiv);
+            messagesDiv.appendChild(messageDiv);
+
+            // 滚动到底部
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            return messageDiv;
+        }
+
+        // 更新流式消息状态
+        function updateStreamMessage(messageDiv, status, isCompleted = false, isError = false) {
+            const statusDiv = messageDiv.querySelector('.stream-status');
+            if (statusDiv) {
+                statusDiv.textContent = status;
+
+                // 移除之前的状态类
+                statusDiv.classList.remove('completed', 'error');
+
+                // 只在完成或错误时显示状态栏
+                if (isCompleted || isError) {
+                    statusDiv.style.display = 'block';
+
+                    // 添加新的状态类
+                    if (isCompleted) {
+                        statusDiv.classList.add('completed');
+                    } else if (isError) {
+                        statusDiv.classList.add('error');
+                    }
+                }
+            }
+        }
+
+        // 追加流式内容
+        function appendStreamContent(messageDiv, content) {
+            const outputDiv = messageDiv.querySelector('.stream-output');
+            if (outputDiv) {
+                outputDiv.textContent += content;
+                // 自动滚动到底部
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+            }
+        }
+
+        // 清空流式内容
+        function clearStreamContent(messageDiv) {
+            const outputDiv = messageDiv.querySelector('.stream-output');
+            if (outputDiv) {
+                outputDiv.textContent = '';
+            }
+        }
+
+        // 添加重试按钮
+        function addRetryButton(messageDiv) {
+            const contentDiv = messageDiv.querySelector('.message-content');
+            if (!contentDiv) return;
+
+            // 检查是否已经有重试按钮
+            if (contentDiv.querySelector('.retry-button')) return;
+
+            // 创建重试按钮
+            const retryBtn = document.createElement('button');
+            retryBtn.className = 'btn btn-primary retry-button';
+            retryBtn.style.cssText = 'margin-top: 10px; padding: 8px 16px; font-size: 13px;';
+            retryBtn.textContent = '🔄 重新生成';
+            retryBtn.onclick = function() {
+                retryGeneration();
+            };
+
+            contentDiv.appendChild(retryBtn);
+
+            // 滚动到底部，确保按钮可见
+            scrollToBottom();
+        }
+
+        // 重试生成
+        function retryGeneration() {
+            if (!lastPrompt) {
+                alert('没有可重试的请求');
+                return;
+            }
+
+            if (!lastFailedMessageDiv) {
+                alert('找不到失败的消息框');
+                return;
+            }
+
+            console.log('[重试] 使用提示词:', lastPrompt);
+            console.log('[重试] 复用消息框，不添加新的用户消息');
+
+            // 临时设置输入框的值，但不显示给用户
+            const input = document.getElementById('userInput');
+            const originalValue = input.value;
+            input.value = lastPrompt;
+
+            // 调用生成函数，传入重试标志和失败的消息框
+            generateDiagram(true, lastFailedMessageDiv);
+
+            // 恢复输入框原来的值
+            input.value = originalValue;
+        }
+
+        // 加载 XML 到编辑器
+        function loadXMLToEditor(xml) {
+            if (!isEditorReady) {
+                alert('编辑器未就绪，请稍候');
+                return;
+            }
+
+            // 隐藏空状态
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('drawioEditor').style.display = 'block';
+
+            // 发送加载命令
+            const message = JSON.stringify({
+                action: 'load',
+                xml: xml,
+                autosave: 1
+            });
+
+            editorFrame.postMessage(message, '*');
+            console.log('XML 已加载到编辑器');
+        }
+
+        // 保存流程图
+        async function saveDiagram() {
+            if (!currentXML) {
+                alert('还没有图表可以保存');
+                return;
+            }
+
+            // 先导出当前图表
+            editorFrame.postMessage(JSON.stringify({action: 'export', format: 'xml'}), '*');
+
+            // 等待一下让 export 完成
+            setTimeout(async () => {
+                try {
+                    const response = await fetch('http://localhost:8000/api/save-diagram', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ xml: currentXML })
+                    });
+
+                    const data = await response.json();
+                    addChatMessage('ai', `保存成功！图表 ID: ${data.id}`);
+                } catch (error) {
+                    console.error('保存失败:', error);
+                    addChatMessage('ai', '保存失败，请重试。');
+                }
+            }, 500);
+        }
+
+        // 导出图表
+        function exportDiagram() {
+            if (!currentXML) {
+                alert('还没有图表可以导出');
+                return;
+            }
+
+            // 导出为 XML 文件
+            const blob = new Blob([currentXML], { type: 'text/xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'diagram.drawio';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            addChatMessage('ai', '图表已导出为 .drawio 文件');
+        }
+
+        // 导出图片 - 打开格式选择器
+        function exportAsImage() {
+            if (!isEditorReady) {
+                alert('编辑器未就绪，请稍候');
+                return;
+            }
+
+            if (!currentXML) {
+                alert('还没有图表可以导出');
+                return;
+            }
+
+            // 显示格式选择器
+            document.getElementById('formatOverlay').classList.add('active');
+            document.getElementById('formatSelector').classList.add('active');
+        }
+
+        // 选择格式
+        function selectFormat(format) {
+            selectedFormat = format;
+            document.getElementById('formatPNG').checked = (format === 'png');
+            document.getElementById('formatJPG').checked = (format === 'jpg');
+            document.getElementById('formatSVG').checked = (format === 'svg');
+        }
+
+        // 关闭格式选择器
+        function closeFormatSelector() {
+            document.getElementById('formatOverlay').classList.remove('active');
+            document.getElementById('formatSelector').classList.remove('active');
+        }
+
+        // 确认导出
+        function confirmExport() {
+            // 关闭选择器
+            closeFormatSelector();
+
+            // 设置导出标志
+            exportingImage = true;
+
+            // 发送导出命令到 draw.io
+            const message = JSON.stringify({
+                action: 'export',
+                format: selectedFormat,
+                spin: 'Exporting...'
+            });
+
+            editorFrame.postMessage(message, '*');
+            console.log(`正在导出 ${selectedFormat.toUpperCase()} 图片...`);
+        }
+
+        // 下载图片
+        function downloadImage(data, format) {
+            try {
+                const link = document.createElement('a');
+
+                if (format === 'svg') {
+                    // SVG 格式处理
+                    const blob = new Blob([data], { type: 'image/svg+xml' });
+                    link.href = URL.createObjectURL(blob);
+                } else {
+                    // PNG/JPG 格式处理（base64）
+                    // 检查是否已经包含 data URL 前缀
+                    if (!data.startsWith('data:')) {
+                        // 如果没有前缀，添加正确的 MIME 类型
+                        const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+                        data = `data:${mimeType};base64,${data}`;
+                    }
+
+                    // 将 base64 转换为 Blob（更适合大文件）
+                    try {
+                        const base64Data = data.split(',')[1];
+                        const byteCharacters = atob(base64Data);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+                        const blob = new Blob([byteArray], { type: mimeType });
+                        link.href = URL.createObjectURL(blob);
+                    } catch (e) {
+                        // 如果转换失败，直接使用 data URL
+                        console.warn('Blob 转换失败，使用 data URL:', e);
+                        link.href = data;
+                    }
+                }
+
+                link.download = `diagram_${Date.now()}.${format}`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // 清理 URL 对象
+                if (link.href.startsWith('blob:')) {
+                    setTimeout(() => URL.revokeObjectURL(link.href), 100);
+                }
+
+                console.log(`${format.toUpperCase()} 图片已下载`);
+            } catch (error) {
+                console.error('下载图片失败:', error);
+                alert('下载图片失败: ' + error.message);
+            }
+        }
+
+        // 导入图表
+        function importDiagram() {
+            const fileInput = document.getElementById('fileInput');
+            fileInput.click();
+        }
+
+        // 处理文件选择
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // 检查文件类型
+            const fileName = file.name.toLowerCase();
+            if (!fileName.endsWith('.xml') && !fileName.endsWith('.drawio')) {
+                alert('请选择 .xml 或 .drawio 文件');
+                return;
+            }
+
+            // 读取文件内容
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const xml = e.target.result;
+
+                    console.log('导入的 XML 长度:', xml.length, '字符');
+
+                    // 加载到编辑器
+                    loadXMLToEditor(xml);
+
+                    // 将导入的 XML 添加到对话历史（作为初始上下文）
+                    conversationHistory = [
+                        {
+                            role: 'user',
+                            content: '我导入了一个流程图，请帮我理解它的结构'
+                        },
+                        {
+                            role: 'assistant',
+                            content: xml
+                        }
+                    ];
+
+                    console.log('对话历史已初始化，长度:', conversationHistory.length);
+
+                    // 添加 AI 消息
+                    addChatMessage('ai', `已导入文件：${file.name}。你现在可以基于这个流程图进行修改，例如："把某个框改大一点"、"添加一个新步骤"等。`);
+
+                    // 清空文件输入，允许重复导入同一文件
+                    event.target.value = '';
+
+                } catch (error) {
+                    console.error('导入失败:', error);
+                    alert('导入失败，请检查文件格式是否正确');
+                }
+            };
+
+            reader.onerror = function() {
+                alert('文件读取失败');
+            };
+
+            reader.readAsText(file);
+        }
+
+        // 添加聊天消息
+        function addChatMessage(type, content) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${type}`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+
+            messageDiv.appendChild(contentDiv);
+            messagesDiv.appendChild(messageDiv);
+
+            // 滚动到底部
+            scrollToBottom();
+        }
+
+        // 滚动聊天区到底部
+        function scrollToBottom() {
+            const messagesDiv = document.getElementById('chatMessages');
+            // 使用 setTimeout 确保 DOM 更新后再滚动
+            setTimeout(() => {
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }, 0);
+        }
+
+        // 新建会话
+        function newConversation() {
+            // 清空对话历史
+            conversationHistory = [];
+            lastPrompt = null;
+            lastFailedXML = null;
+            lastValidationError = null;
+            failedAPIs = [];
+            lastUsedAPI = null;
+            lastFailedMessageDiv = null;
+            currentXML = null;
+
+            // 清空聊天消息
+            const messagesDiv = document.getElementById('chatMessages');
+            messagesDiv.innerHTML = '';
+
+            // 添加欢迎消息
+            const welcomeDiv = document.createElement('div');
+            welcomeDiv.className = 'message message-ai';
+            welcomeDiv.innerHTML = `
+                <div class="message-content">
+                    你好！我是 auto-drawio。<br>
+                    请描述你想要生成的流程图，例如：<br>
+                    • "生成一个用户登录流程图"<br>
+                    • "创建订单处理流程"<br>
+                    • "设计支付系统架构图"
+                </div>
+            `;
+            messagesDiv.appendChild(welcomeDiv);
+
+            // 清空输入框
+            document.getElementById('userInput').value = '';
+
+            // 清空 Draw.io 编辑器
+            document.getElementById('drawioEditor').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'flex';
+
+            // 重置状态
+            updateStatus('就绪', 'ready');
+
+            console.log('[新建会话] 会话已重置');
+        }
+
+        // 添加带有交互式选项的失败消息
+        function addFailureMessage(errorMessage, retriesAttempted) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message message-ai';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            // 创建错误消息文本
+            const errorText = document.createElement('div');
+            errorText.innerHTML = `
+                <strong>❌ 生成失败</strong><br>
+                <span style="color: #dc3545;">${errorMessage}</span><br>
+                <small>已自动重试 ${retriesAttempted} 次</small>
+            `;
+            contentDiv.appendChild(errorText);
+
+            // 创建操作按钮区域
+            const actionsDiv = document.createElement('div');
+            actionsDiv.style.cssText = 'margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;';
+
+            // 手动重试按钮
+            const retryBtn = document.createElement('button');
+            retryBtn.textContent = '🔄 手动重试';
+            retryBtn.style.cssText = 'padding: 6px 12px; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer; font-size: 12px;';
+            retryBtn.onclick = function() {
+                console.log('[手动重试] 用户点击手动重试');
+                manualRetry();
+            };
+
+            // 查看错误详情按钮
+            const detailsBtn = document.createElement('button');
+            detailsBtn.textContent = '🔍 错误详情';
+            detailsBtn.style.cssText = 'padding: 6px 12px; border: none; border-radius: 4px; background: #6c757d; color: white; cursor: pointer; font-size: 12px;';
+            detailsBtn.onclick = function() {
+                console.log('[错误详情] 用户点击查看详情');
+                viewErrorDetails();
+            };
+
+            // 下载失败 XML 按钮
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = '📥 下载失败的XML';
+            downloadBtn.style.cssText = 'padding: 6px 12px; border: none; border-radius: 4px; background: #28a745; color: white; cursor: pointer; font-size: 12px;';
+            downloadBtn.onclick = function() {
+                console.log('[下载XML] 用户点击下载失败的XML');
+                downloadFailedXML();
+            };
+
+            // 添加按钮
+            actionsDiv.appendChild(retryBtn);
+            actionsDiv.appendChild(detailsBtn);
+            actionsDiv.appendChild(downloadBtn);
+
+            contentDiv.appendChild(actionsDiv);
+            messageDiv.appendChild(contentDiv);
+            messagesDiv.appendChild(messageDiv);
+
+            // 滚动到底部
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // 手动重试生成
+        function manualRetry() {
+            if (!lastPrompt) {
+                alert('无法重试：未找到上次的提示词');
+                return;
+            }
+
+            console.log('[手动重试] 使用提示词:', lastPrompt);
+            console.log('[手动重试] 重置失败 API 列表');
+
+            // 重置失败 API 列表（给新一轮尝试所有 API 的机会）
+            failedAPIs = [];
+
+            addChatMessage('user', `[手动重试] ${lastPrompt}`);
+
+            // 设置输入框的值为上次的提示词，然后调用生成函数
+            const input = document.getElementById('userInput');
+            input.value = lastPrompt;
+            generateDiagram(0);  // 从头开始，retryCount = 0
+        }
+
+        // 查看错误详情
+        function viewErrorDetails() {
+            if (!lastValidationError || !lastFailedXML) {
+                alert('没有可用的错误详情');
+                return;
+            }
+
+            // 创建详情消息
+            const xmlPreview = lastFailedXML.substring(0, 500);  // 只显示前 500 字符
+            const detailsText = `
+━━━━━━━━━━━━━━━━━━━━━━━━
+📋 错误详情
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ 错误类型：
+${lastValidationError}
+
+📄 XML 预览（前 500 字符）：
+${xmlPreview}...
+
+💡 可能的解决方案：
+1. 尝试手动重试（可能是临时错误）
+2. 修改描述，使用更简单的表述
+3. 下载失败的 XML 提供给开发者调试
+            `.trim();
+
+            addChatMessage('ai', detailsText);
+        }
+
+        // 下载失败的 XML
+        function downloadFailedXML() {
+            if (!lastFailedXML) {
+                alert('没有失败的 XML 可下载');
+                return;
+            }
+
+            try {
+                const blob = new Blob([lastFailedXML], { type: 'text/xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `failed_diagram_${Date.now()}.xml`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                addChatMessage('ai', '✅ 失败的 XML 已下载，文件名包含时间戳');
+            } catch (error) {
+                console.error('[下载失败]', error);
+                alert('下载失败：' + error.message);
+            }
+        }
+
+        // 更新状态
+        function updateStatus(text, status) {
+            const badge = document.getElementById('statusBadge');
+            badge.textContent = text;
+            badge.className = `status-badge status-${status}`;
+        }
+
+        // 显示/隐藏加载状态
+        function showLoading(show) {
+            const loading = document.getElementById('loadingState');
+            const emptyState = document.getElementById('emptyState');
+
+            if (show) {
+                loading.classList.add('active');
+                // 生成时隐藏空状态提示
+                emptyState.style.display = 'none';
+            } else {
+                loading.classList.remove('active');
+                // 如果没有图表，重新显示空状态提示
+                const editor = document.getElementById('drawioEditor');
+                if (editor.style.display === 'none') {
+                    emptyState.style.display = 'flex';
+                }
+            }
+        }
+
+        // ========== AI 配置管理功能 ==========
+
+        // 打开设置模态框
+        async function openSettings() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.add('active');
+            await loadConfigs();
+        }
+
+        // 关闭设置模态框
+        function closeSettings() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.remove('active');
+            closeConfigForm();
+        }
+
+        // 从后端加载配置列表
+        async function loadConfigs() {
+            try {
+                const response = await fetch('http://localhost:8000/api/ai-configs');
+                const data = await response.json();
+
+                if (data.success) {
+                    renderConfigList(data.configs);
+                } else {
+                    throw new Error('加载配置失败');
+                }
+            } catch (error) {
+                console.error('加载配置失败:', error);
+                document.getElementById('configList').innerHTML =
+                    '<p style="text-align: center; color: #dc3545;">加载失败，请检查后端服务</p>';
+            }
+        }
+
+        // 渲染配置列表
+        function renderConfigList(configs) {
+            const listContainer = document.getElementById('configList');
+
+            if (configs.length === 0) {
+                listContainer.innerHTML = '<p style="text-align: center; color: #6c757d;">还没有配置，点击上方按钮添加</p>';
+                return;
+            }
+
+            listContainer.innerHTML = configs.map(config => `
+                <div class="config-item">
+                    <div class="config-header">
+                        <div>
+                            <span class="config-name">${escapeHtml(config.name)}</span>
+                            <span class="config-status ${config.enabled ? 'config-enabled' : 'config-disabled'}">
+                                ${config.enabled ? '已启用' : '已禁用'}
+                            </span>
+                        </div>
+                        <div class="config-actions">
+                            <button class="btn btn-small btn-secondary" onclick="editConfig('${config.id}')">
+                                编辑
+                            </button>
+                            <button class="btn btn-small ${config.enabled ? 'btn-secondary' : 'btn-success'}"
+                                    onclick="toggleConfig('${config.id}', ${!config.enabled})">
+                                ${config.enabled ? '禁用' : '启用'}
+                            </button>
+                            <button class="btn btn-small btn-danger" onclick="deleteConfig('${config.id}')">
+                                删除
+                            </button>
+                        </div>
+                    </div>
+                    <div class="config-details">
+                        <div><strong>模型:</strong> ${escapeHtml(config.model)}</div>
+                        <div><strong>URL:</strong> ${escapeHtml(config.base_url)}</div>
+                        <div><strong>API Key:</strong> ${maskApiKey(config.api_key)}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 显示添加配置表单
+        function showAddConfigForm() {
+            document.getElementById('formTitle').textContent = '添加新配置';
+            document.getElementById('configForm').reset();
+            document.getElementById('configId').value = '';
+            document.getElementById('configFormModal').classList.add('active');
+        }
+
+        // 关闭配置表单模态窗口
+        function closeConfigForm() {
+            document.getElementById('configFormModal').classList.remove('active');
+            document.getElementById('configForm').reset();
+        }
+
+        // 编辑配置
+        async function editConfig(configId) {
+            try {
+                const response = await fetch(`http://localhost:8000/api/ai-configs/${configId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const config = data.config;
+
+                    document.getElementById('formTitle').textContent = '编辑配置';
+                    document.getElementById('configId').value = config.id;
+                    document.getElementById('configName').value = config.name;
+                    document.getElementById('configBaseUrl').value = config.base_url;
+                    document.getElementById('configApiKey').value = config.api_key;
+                    document.getElementById('configModel').value = config.model;
+                    document.getElementById('configFormModal').classList.add('active');
+                } else {
+                    alert('加载配置失败');
+                }
+            } catch (error) {
+                console.error('加载配置失败:', error);
+                alert('加载配置失败: ' + error.message);
+            }
+        }
+
+        // 保存配置
+        async function saveConfig(event) {
+            event.preventDefault();
+
+            const configId = document.getElementById('configId').value;
+            const configData = {
+                name: document.getElementById('configName').value,
+                base_url: document.getElementById('configBaseUrl').value,
+                api_key: document.getElementById('configApiKey').value,
+                model: document.getElementById('configModel').value,
+                priority: 0,  // 默认优先级为0
+                enabled: false  // 默认禁用，避免冲突
+            };
+
+            try {
+                let response;
+                if (configId) {
+                    // 更新现有配置时，保持原有的启用状态
+                    const getResponse = await fetch(`http://localhost:8000/api/ai-configs/${configId}`);
+                    const getData = await getResponse.json();
+                    if (getData.success) {
+                        configData.enabled = getData.config.enabled;
+                    }
+
+                    response = await fetch(`http://localhost:8000/api/ai-configs/${configId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(configData)
+                    });
+                } else {
+                    // 创建新配置
+                    response = await fetch('http://localhost:8000/api/ai-configs', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(configData)
+                    });
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    closeConfigForm();
+                    await loadConfigs();
+                } else {
+                    alert('保存失败: ' + (data.detail || '未知错误'));
+                }
+            } catch (error) {
+                console.error('保存配置失败:', error);
+                alert('保存配置失败: ' + error.message);
+            }
+        }
+
+        // 启用/禁用配置（单选模式：只能启用一个）
+        async function toggleConfig(configId, enabled) {
+            try {
+                if (enabled) {
+                    // 如果要启用，先禁用所有其他配置
+                    const allConfigsResponse = await fetch('http://localhost:8000/api/ai-configs');
+                    const allConfigsData = await allConfigsResponse.json();
+
+                    if (allConfigsData.success) {
+                        // 禁用所有已启用的配置
+                        for (const config of allConfigsData.configs) {
+                            if (config.enabled && config.id !== configId) {
+                                await fetch(`http://localhost:8000/api/ai-configs/${config.id}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ enabled: false })
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // 更新目标配置的状态
+                const response = await fetch(`http://localhost:8000/api/ai-configs/${configId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enabled })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    await loadConfigs();
+                } else {
+                    alert('更新失败: ' + (data.detail || '未知错误'));
+                }
+            } catch (error) {
+                console.error('更新配置失败:', error);
+                alert('更新配置失败: ' + error.message);
+            }
+        }
+
+        // 删除配置
+        async function deleteConfig(configId) {
+            try {
+                const response = await fetch(`http://localhost:8000/api/ai-configs/${configId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    await loadConfigs();
+                } else {
+                    alert('删除失败: ' + (data.detail || '未知错误'));
+                }
+            } catch (error) {
+                console.error('删除配置失败:', error);
+                alert('删除配置失败: ' + error.message);
+            }
+        }
+
+        // 工具函数：转义 HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 工具函数：遮蔽 API Key
+        function maskApiKey(apiKey) {
+            if (!apiKey || apiKey.length < 8) {
+                return '***';
+            }
+            return apiKey.substring(0, 10) + '***' + apiKey.substring(apiKey.length - 4);
+        }
+    </script>
+</body>
+</html>
