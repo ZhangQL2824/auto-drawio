@@ -649,7 +649,8 @@
                 <div class="message message-ai">
                     <div class="message-content">
                         你好！我是 auto-drawio。<br>
-                        请描述你想要生成的流程图，例如：<br>
+                        <span style="color: #856404;">⏳ 编辑器正在初始化，请稍候...</span><br><br>
+                        初始化完成后，你可以描述想要生成的流程图，例如：<br>
                         • "生成一个用户登录流程图"<br>
                         • "创建订单处理流程"<br>
                         • "设计支付系统架构图"
@@ -660,13 +661,13 @@
             <div class="chat-input-area">
                 <!-- 快捷提问按钮 -->
                 <div class="quick-questions">
-                    <button class="quick-question-btn" onclick="quickQuestion('生成一个用户登录流程图')">
+                    <button class="quick-question-btn" onclick="quickQuestion('生成一个用户登录流程图')" disabled>
                         用户登录流程
                     </button>
-                    <button class="quick-question-btn" onclick="quickQuestion('创建一个电商订单处理流程')">
+                    <button class="quick-question-btn" onclick="quickQuestion('创建一个电商订单处理流程')" disabled>
                         订单处理流程
                     </button>
-                    <button class="quick-question-btn" onclick="quickQuestion('设计一个支付系统架构图')">
+                    <button class="quick-question-btn" onclick="quickQuestion('设计一个支付系统架构图')" disabled>
                         支付系统架构
                     </button>
                 </div>
@@ -676,10 +677,11 @@
                         type="text"
                         class="chat-input"
                         id="userInput"
-                        placeholder="描述你想要的流程图..."
+                        placeholder="等待编辑器初始化..."
                         onkeypress="handleKeyPress(event)"
+                        disabled
                     />
-                    <button class="btn btn-primary" id="generateBtn" onclick="generateDiagram()">
+                    <button class="btn btn-primary" id="generateBtn" onclick="generateDiagram()" disabled>
                         生成
                     </button>
                 </div>
@@ -692,7 +694,7 @@
         <div class="editor-panel">
             <div class="editor-header">
                 <div class="editor-header-left">
-                    <span class="status-badge status-ready" id="statusBadge">就绪</span>
+                    <span class="status-badge status-loading" id="statusBadge">初始化中...</span>
                 </div>
                 <div class="editor-header-center">
                     <!-- 提示横幅 -->
@@ -706,7 +708,7 @@
                         <button class="btn btn-secondary btn-small" onclick="openSettings()">
                             模型配置
                         </button>
-                        <button class="btn btn-success btn-small" onclick="exportAsImage()">
+                        <button class="btn btn-success btn-small" id="exportImageBtn" onclick="exportAsImage()" disabled>
                             导出图片
                         </button>
                         <!-- 暂时隐藏的按钮 -->
@@ -744,7 +746,7 @@
                     id="drawioEditor"
                     class="editor-iframe"
                     style="display: none;"
-                    src="http://localhost:8080/?embed=1&proto=json&spin=1&saveAndExit=0&noSaveBtn=1&noExitBtn=1&libraries=1&ui=kennedy"
+                    src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&saveAndExit=0&noSaveBtn=1&noExitBtn=1&libraries=1&ui=kennedy"
                 ></iframe>
             </div>
         </div>
@@ -876,6 +878,68 @@
             console.log('对话记忆功能已启用');
         });
 
+        // 启用所有控件
+        function enableControls() {
+            // 启用输入框
+            const userInput = document.getElementById('userInput');
+            userInput.disabled = false;
+            userInput.placeholder = '描述你想要的流程图...';
+
+            // 启用生成按钮
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = false;
+
+            // 启用导出按钮
+            const exportBtn = document.getElementById('exportImageBtn');
+            exportBtn.disabled = false;
+
+            // 启用快捷提问按钮
+            const quickBtns = document.querySelectorAll('.quick-question-btn');
+            quickBtns.forEach(btn => {
+                btn.disabled = false;
+            });
+
+            // 更新欢迎消息
+            const messagesDiv = document.getElementById('chatMessages');
+            const welcomeMessage = messagesDiv.querySelector('.message-ai .message-content');
+            if (welcomeMessage && welcomeMessage.textContent.includes('初始化')) {
+                welcomeMessage.innerHTML = `
+                    你好！我是 auto-drawio。<br>
+                    <span style="color: #28a745;">✅ 编辑器已就绪！</span><br><br>
+                    请描述你想要生成的流程图，例如：<br>
+                    • "生成一个用户登录流程图"<br>
+                    • "创建订单处理流程"<br>
+                    • "设计支付系统架构图"
+                `;
+            }
+
+            console.log('[控件管理] 所有控件已启用');
+        }
+
+        // 禁用所有控件
+        function disableControls() {
+            // 禁用输入框
+            const userInput = document.getElementById('userInput');
+            userInput.disabled = true;
+            userInput.placeholder = '等待编辑器初始化...';
+
+            // 禁用生成按钮
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = true;
+
+            // 禁用导出按钮
+            const exportBtn = document.getElementById('exportImageBtn');
+            exportBtn.disabled = true;
+
+            // 禁用快捷提问按钮
+            const quickBtns = document.querySelectorAll('.quick-question-btn');
+            quickBtns.forEach(btn => {
+                btn.disabled = true;
+            });
+
+            console.log('[控件管理] 所有控件已禁用');
+        }
+
         // 处理 draw.io 的消息
         function handleDrawioMessage(msg) {
             console.log('收到 draw.io 消息:', msg);
@@ -884,6 +948,7 @@
                 case 'init':
                     isEditorReady = true;
                     updateStatus('就绪', 'ready');
+                    enableControls();
                     console.log('Draw.io 编辑器已就绪');
                     break;
 
@@ -975,6 +1040,12 @@
         // 生成流程图（支持自动重试）
         // 生成流程图（使用流式输出）
         async function generateDiagram(isRetry = false, retryMessageDiv = null) {
+            // 检查编辑器是否就绪
+            if (!isEditorReady) {
+                alert('编辑器正在初始化中，请稍候...');
+                return;
+            }
+
             const input = document.getElementById('userInput');
             const prompt = input.value.trim();
 
@@ -1244,7 +1315,7 @@
         // 加载 XML 到编辑器
         function loadXMLToEditor(xml) {
             if (!isEditorReady) {
-                alert('编辑器未就绪，请稍候');
+                alert('编辑器正在初始化中，请稍候...');
                 return;
             }
 
@@ -1313,7 +1384,7 @@
         // 导出图片 - 打开格式选择器
         function exportAsImage() {
             if (!isEditorReady) {
-                alert('编辑器未就绪，请稍候');
+                alert('编辑器正在初始化中，请稍候...');
                 return;
             }
 
