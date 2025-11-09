@@ -432,19 +432,7 @@ async def redoc_html():
         redoc_js_url="https://cdn.bootcdn.net/ajax/libs/redoc/2.1.3/bundles/redoc.standalone.js",
     )
 
-@app.get("/")
-async def root():
-    return {
-        "message": "AI 流程图生成器 API",
-        "version": "1.0.0",
-        "endpoints": {
-            "generate": "/api/generate-diagram",
-            "save": "/api/save-diagram",
-            "load": "/api/diagram/{id}",
-            "test": "/api/test-ai",
-            "ai_configs": "/api/ai-configs"
-        }
-    }
+# 静态文件服务已移到文件末尾，此处删除原有的根路由以避免冲突
 
 # ========== AI 配置管理 API ==========
 
@@ -1043,6 +1031,11 @@ async def health_check():
         "status": "healthy",
         "diagrams_count": len(diagrams_db)
     }
+
+# ========== 静态文件服务 ==========
+# 挂载静态文件服务（index.html 及其他资源）
+# 注意：必须放在所有 API 路由之后，否则会覆盖 API 路由
+app.mount("/", StaticFiles(directory="../", html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn

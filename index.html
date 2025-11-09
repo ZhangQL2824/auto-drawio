@@ -1088,7 +1088,7 @@
             showLoading(true);
 
             try {
-                const response = await fetch('http://localhost:8000/api/generate-diagram-stream', {
+                const response = await fetch('/api/generate-diagram-stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1347,7 +1347,7 @@
             // 等待一下让 export 完成
             setTimeout(async () => {
                 try {
-                    const response = await fetch('http://localhost:8000/api/save-diagram', {
+                    const response = await fetch('/api/save-diagram', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ xml: currentXML })
@@ -1796,7 +1796,7 @@ ${xmlPreview}...
         // 从后端加载配置列表
         async function loadConfigs() {
             try {
-                const response = await fetch('http://localhost:8000/api/ai-configs');
+                const response = await fetch('/api/ai-configs');
                 const data = await response.json();
 
                 if (data.success) {
@@ -1868,7 +1868,7 @@ ${xmlPreview}...
         // 编辑配置
         async function editConfig(configId) {
             try {
-                const response = await fetch(`http://localhost:8000/api/ai-configs/${configId}`);
+                const response = await fetch(`/api/ai-configs/${configId}`);
                 const data = await response.json();
 
                 if (data.success) {
@@ -1908,20 +1908,20 @@ ${xmlPreview}...
                 let response;
                 if (configId) {
                     // 更新现有配置时，保持原有的启用状态
-                    const getResponse = await fetch(`http://localhost:8000/api/ai-configs/${configId}`);
+                    const getResponse = await fetch(`/api/ai-configs/${configId}`);
                     const getData = await getResponse.json();
                     if (getData.success) {
                         configData.enabled = getData.config.enabled;
                     }
 
-                    response = await fetch(`http://localhost:8000/api/ai-configs/${configId}`, {
+                    response = await fetch(`/api/ai-configs/${configId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(configData)
                     });
                 } else {
                     // 创建新配置
-                    response = await fetch('http://localhost:8000/api/ai-configs', {
+                    response = await fetch('/api/ai-configs', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(configData)
@@ -1947,14 +1947,14 @@ ${xmlPreview}...
             try {
                 if (enabled) {
                     // 如果要启用，先禁用所有其他配置
-                    const allConfigsResponse = await fetch('http://localhost:8000/api/ai-configs');
+                    const allConfigsResponse = await fetch('/api/ai-configs');
                     const allConfigsData = await allConfigsResponse.json();
 
                     if (allConfigsData.success) {
                         // 禁用所有已启用的配置
                         for (const config of allConfigsData.configs) {
                             if (config.enabled && config.id !== configId) {
-                                await fetch(`http://localhost:8000/api/ai-configs/${config.id}`, {
+                                await fetch(`/api/ai-configs/${config.id}`, {
                                     method: 'PUT',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ enabled: false })
@@ -1965,7 +1965,7 @@ ${xmlPreview}...
                 }
 
                 // 更新目标配置的状态
-                const response = await fetch(`http://localhost:8000/api/ai-configs/${configId}`, {
+                const response = await fetch(`/api/ai-configs/${configId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ enabled: enabled })
@@ -1987,7 +1987,7 @@ ${xmlPreview}...
         // 删除配置
         async function deleteConfig(configId) {
             try {
-                const response = await fetch(`http://localhost:8000/api/ai-configs/${configId}`, {
+                const response = await fetch(`/api/ai-configs/${configId}`, {
                     method: 'DELETE'
                 });
 
