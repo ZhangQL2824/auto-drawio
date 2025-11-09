@@ -308,6 +308,7 @@ auto-drawio/
 
 ## 🙏 致谢
 
+- [Smart Excalidraw Next](https://github.com/liujuntao123/smart-excalidraw-next) - 本项目受此项目启发而创建，感谢其优秀的创意和实现
 - [Draw.io](https://github.com/jgraph/drawio) - 强大的开源绘图工具
 - [FastAPI](https://fastapi.tiangolo.com/) - 现代化的 Python Web 框架
 - 所有贡献者和使用者 ❤️
