@@ -314,6 +314,12 @@ auto-drawio/
 
 ---
 
+## 🔗 相关项目
+
+- [Smart Excalidraw Next](https://github.com/liujuntao123/smart-excalidraw-next) - 基于 AI 的智能手绘风格流程图生成工具
+
+---
+
 ## 📧 联系方式
 
 - 微信联系：扫描下方二维码添加微信好友（昵称：在逃淀粉肠）
